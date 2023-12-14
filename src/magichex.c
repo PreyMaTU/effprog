@@ -162,7 +162,6 @@ int solve(unsigned long n, long d, Var vs[])
       if (occupation[v->lo-o] < r*r)
         return 0; /* another variable has the same value */
       occupation[v->lo-o] = i; /* occupy v->lo */
-      goto restart;
     }
   }
   /* now propagate the alldifferent results to the bounds */
