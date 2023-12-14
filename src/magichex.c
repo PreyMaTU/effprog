@@ -164,17 +164,33 @@ int solve(unsigned long n, long d, Var vs[])
       occupation[v->lo-o] = i; /* occupy v->lo */
     }
   }
+restart_propagate_alldifferent:
   /* now propagate the alldifferent results to the bounds */
   for (i=0; i<r*r; i++) {
     Var *v = &vs[i];
     if (v->lo < v->hi) {
+try_to_propagate_alldiff_again:
       if (occupation[v->lo-o] < r*r) {
         v->lo++;
-        goto restart;
+        if( v->lo == v->hi ) {
+          if( occupation[v->lo-o] < r*r ) {
+            return 0;
+          }
+          occupation[v->lo-o]= i;
+          goto restart_propagate_alldifferent;
+        }
+        goto try_to_propagate_alldiff_again;
       }
       if (occupation[v->hi-o] < r*r) {
         v->hi--;
-        goto restart;
+        if( v->lo == v->hi ) {
+          if( occupation[v->lo-o] < r*r ) {
+            return 0;
+          }
+          occupation[v->lo-o]= i;
+          goto restart_propagate_alldifferent;
+        }
+        goto try_to_propagate_alldiff_again;
       }
     }
   }
