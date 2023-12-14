@@ -148,7 +148,7 @@ int solve(unsigned long n, long d, Var vs[])
   long M = d*H;
   long o = d*r - (H-1)/2; /* offset in occupation array */
   unsigned long occupation[H]; /* if vs[i] has value x, occupation[x-o]==i, 
-                                  if no vs[*] has value x, occupation[x-o]==H*/
+                                  if no vs[*] has value x, occupation[x-o]==r*r */
   unsigned long corners[] = {0, n-1, (n-1)*r+0, (n-1)*r+r-1, (r-1)*r+n-1, (r-1)*r+r-1};
   unsigned long i;
   //printf("(re)start\n");
