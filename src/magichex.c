@@ -39,6 +39,10 @@ typedef struct var {
    highest value = dr + (H-1)/2
 */
 
+#define NO_SOLUTION (0)
+#define DID_CHANGE  (1)
+#define NO_CHANGE   (2)
+
 unsigned long solutions = 0; /* counter of solutions */
 unsigned long leafs = 0; /* counter of leaf nodes visited in the search tree */
 
@@ -69,11 +73,11 @@ static int sethi(Var *v, long x) {
   if (x < v->hi) {
     v->hi = x;
     if (v->lo <= v->hi)
-      return 1;
+      return DID_CHANGE;
     else
-      return 0;
+      return NO_SOLUTION;
   }
-  return 2;
+  return NO_CHANGE;
 }
 
 static int setlo(Var *v, long x) {
@@ -81,11 +85,11 @@ static int setlo(Var *v, long x) {
   if (x > v->lo) {
     v->lo = x;
     if (v->lo <= v->hi)
-      return 1;
+      return DID_CHANGE;
     else
-      return 0;
+      return NO_SOLUTION;
   }
-  return 2;
+  return NO_CHANGE;
 }
 
 /* returns 0 if there is no solution, 1 if one of the variables has changed */
@@ -94,7 +98,7 @@ static int lessthan(Var *v1, Var *v2)
   assert(v1->id >= 0);
   assert(v2->id >= 0);
   int f = sethi(v1, v2->hi-1);
-  if (f < 2)
+  if (f != NO_CHANGE)
     return f;
   return (setlo(v2, v1->lo+1));
 }
@@ -129,13 +133,13 @@ int sum(Var vs[], unsigned long nv, unsigned long stride, long sum,
     assert(vp>=vsstart);
     assert(vp<vsend);
     assert(vp->id >= 0);
-    if (f < 2)
+    if (f != NO_CHANGE)
       return f;
     f = setlo(vp,lo+vp->hi); /* likewise, readd vp->hi */
-    if (f < 2)
+    if (f != NO_CHANGE)
       return f;
   }
-  return 2;
+  return NO_CHANGE;
 }
     
 /* reduce the ranges of the variables as much as possible (with the
@@ -198,15 +202,15 @@ try_to_propagate_alldiff_again:
      one (eliminate rotational symmetry) */
   for (i=1; i<sizeof(corners)/sizeof(corners[0]); i++) {
     int f = lessthan(&vs[corners[0]],&vs[corners[i]]);
-    if (f==0) return 0;
-    if (f==1) goto restart;
+    if (f== NO_SOLUTION) return 0;
+    if (f== DID_CHANGE) goto restart;
   }
   /* eliminate the mirror symmetry between the corners to the right
      and left of the first corner */
   {
     int f = lessthan(&vs[corners[2]],&vs[corners[1]]); 
-    if (f==0) return 0;
-    if (f==1) goto restart;
+    if (f== NO_SOLUTION) return 0;
+    if (f== DID_CHANGE) goto restart;
   }
   /* sum constraints: each line and diagonal sums up to M */
   /* line sum constraints */
@@ -214,16 +218,16 @@ try_to_propagate_alldiff_again:
     int f;
     /* line */
     f = sum(vs+r*i+max(0,i+1-n), min(i+n,r+n-i-1), 1, M, vs, vs+r*r);
-    if (f==0) return 0;
-    if (f==1) goto restart;
+    if (f== NO_SOLUTION) return 0;
+    if (f== DID_CHANGE) goto restart;
     /* column (diagonal down-left in the hexagon) */
     f = sum(vs+i+max(0,i+1-n)*r, min(i+n,r+n-i-1), r, M, vs, vs+r*r);
-    if (f==0) return 0;
-    if (f==1) goto restart;
+    if (f== NO_SOLUTION) return 0;
+    if (f== DID_CHANGE) goto restart;
     /* diagonal (down-right) */
     f = sum(vs-n+1+i+max(0,n-i-1)*(r+1), min(i+n,r+n-i-1), r+1, M, vs, vs+r*r);
-    if (f==0) return 0;
-    if (f==1) goto restart;
+    if (f== NO_SOLUTION) return 0;
+    if (f== DID_CHANGE) goto restart;
   }
   return 1;
 }
