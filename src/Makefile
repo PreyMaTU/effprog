@@ -5,6 +5,9 @@ LDFLAGS=-g
 
 magichex: magichex.o
 
+magichex_cov: magichex.c
+	cc -Wall -O3 -DNDEBUG --coverage magichex.c -lm -o magichex_cov
+
 test1: magichex
 	./magichex 3 2
 
@@ -19,6 +22,10 @@ measure: magichex
 	tr '\0' '\n\n' |\
 	diff -u reference-output -
 
+coverage: magichex_cov
+	./magichex_cov 4 3 14 33 30 34 39 6 24 20 > /dev/null && \
+	gcov magichex
+
 nocheck: magichex
 	perf stat -e cycles:u -e instructions:u -e branches:u -e branch-misses:u -e L1-dcache-load-misses:u ./magichex 4 3 14 33 30 34 39 6 24 20
 
@@ -29,4 +36,4 @@ dist:
 	rm -rf effizienz-aufgabe23
 
 clean:
-	rm -f magichex magichex.o
+	rm -f magichex magichex.o magichex_cov magichex.gcda magichex.gcno magichex.c.gcov
