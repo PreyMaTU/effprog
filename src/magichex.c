@@ -42,12 +42,12 @@ typedef struct var {
 unsigned long solutions = 0; /* counter of solutions */
 unsigned long leafs = 0; /* counter of leaf nodes visited in the search tree */
 
-long min(long a, long b)
+static long min(long a, long b)
 {
   return (a<b)?a:b;
 }
 
-long max(long a, long b)
+static long max(long a, long b)
 {
   return (a>b)?a:b;
 }
@@ -64,7 +64,7 @@ long max(long a, long b)
 */
 
 
-int sethi(Var *v, long x) {
+static int sethi(Var *v, long x) {
   assert(v->id >= 0);
   if (x < v->hi) {
     v->hi = x;
@@ -76,7 +76,7 @@ int sethi(Var *v, long x) {
   return 2;
 }
 
-int setlo(Var *v, long x) {
+static int setlo(Var *v, long x) {
   assert(v->id >= 0);
   if (x > v->lo) {
     v->lo = x;
@@ -89,7 +89,7 @@ int setlo(Var *v, long x) {
 }
 
 /* returns 0 if there is no solution, 1 if one of the variables has changed */
-int lessthan(Var *v1, Var *v2)
+static int lessthan(Var *v1, Var *v2)
 {
   assert(v1->id >= 0);
   assert(v2->id >= 0);
@@ -141,7 +141,7 @@ int sum(Var vs[], unsigned long nv, unsigned long stride, long sum,
 /* reduce the ranges of the variables as much as possible (with the
    constraints we use);  returns 1 if all variables still have a
    non-empty range left, 0 if one has an empty range */
-int solve(unsigned long n, long d, Var vs[])
+static int solve(unsigned long n, long d, Var vs[])
 {
   unsigned long r = 2*n-1;
   unsigned long H = 3*n*n-3*n+1;
@@ -228,7 +228,7 @@ try_to_propagate_alldiff_again:
   return 1;
 }
 
-void printhexagon(unsigned long n, Var vs[])
+static void printhexagon(unsigned long n, Var vs[])
 {
   unsigned long i,j;
   unsigned r=2*n-1;
@@ -261,7 +261,7 @@ void printhexagon(unsigned long n, Var vs[])
 
 /* assign values to vs[index] and all later variables in vs such that
    the constraints hold */
-void labeling(unsigned long n, long d, Var vs[], unsigned long index)
+static void labeling(unsigned long n, long d, Var vs[], unsigned long index)
 {
   long i;
   unsigned long r = 2*n-1;
@@ -297,7 +297,7 @@ void labeling(unsigned long n, long d, Var vs[], unsigned long index)
   }
 }
 
-Var *makehexagon(unsigned long n, long d)
+static Var *makehexagon(unsigned long n, long d)
 {
   unsigned long i,j;
   unsigned long r = 2*n-1;
