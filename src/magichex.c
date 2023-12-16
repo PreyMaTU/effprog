@@ -202,15 +202,19 @@ try_to_propagate_alldiff_again:
      one (eliminate rotational symmetry) */
   for (i=1; i<sizeof(corners)/sizeof(corners[0]); i++) {
     int f = lessthan(&vs[corners[0]],&vs[corners[i]]);
-    if (f== NO_SOLUTION) return 0;
-    if (f== DID_CHANGE) goto restart;
+    if (f== NO_SOLUTION)
+      return 0;
+    if (f== DID_CHANGE)
+      goto restart;
   }
   /* eliminate the mirror symmetry between the corners to the right
      and left of the first corner */
   {
     int f = lessthan(&vs[corners[2]],&vs[corners[1]]); 
-    if (f== NO_SOLUTION) return 0;
-    if (f== DID_CHANGE) goto restart;
+    if (f== NO_SOLUTION) 
+      return 0;
+    if (f== DID_CHANGE) 
+      goto restart;
   }
   /* sum constraints: each line and diagonal sums up to M */
   /* line sum constraints */
@@ -218,16 +222,22 @@ try_to_propagate_alldiff_again:
     int f;
     /* line */
     f = sum(vs+r*i+max(0,i+1-n), min(i+n,r+n-i-1), 1, M, vs, vs+r*r);
-    if (f== NO_SOLUTION) return 0;
-    if (f== DID_CHANGE) goto restart;
+    if (f== NO_SOLUTION)
+      return 0;
+    if (f== DID_CHANGE)
+      goto restart;
     /* column (diagonal down-left in the hexagon) */
     f = sum(vs+i+max(0,i+1-n)*r, min(i+n,r+n-i-1), r, M, vs, vs+r*r);
-    if (f== NO_SOLUTION) return 0;
-    if (f== DID_CHANGE) goto restart;
+    if (f== NO_SOLUTION)
+      return 0;
+    if (f== DID_CHANGE)
+      goto restart;
     /* diagonal (down-right) */
     f = sum(vs-n+1+i+max(0,n-i-1)*(r+1), min(i+n,r+n-i-1), r+1, M, vs, vs+r*r);
-    if (f== NO_SOLUTION) return 0;
-    if (f== DID_CHANGE) goto restart;
+    if (f== NO_SOLUTION)
+      return 0;
+    if (f== DID_CHANGE)
+      goto restart;
   }
   return 1;
 }
