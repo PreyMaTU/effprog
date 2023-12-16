@@ -307,7 +307,7 @@ static Var *makehexagon(unsigned long n, long d)
   unsigned long r = 2*n-1;
   unsigned long H = 3*n*n-3*n+1;
   
-  Var *vs = calloc(r*r,sizeof(Var));
+  Var *vs = (Var*) calloc(r*r,sizeof(Var));
   unsigned long id = 0;
   for (i=0; i<r*r; i++) {
     Var *v = &vs[i];
