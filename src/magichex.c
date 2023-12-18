@@ -102,45 +102,6 @@ static int lessthan(Var *v1, Var *v2)
     return f;
   return (setlo(v2, v1->lo+1));
 }
-
-int sum(Var vs[], unsigned long nv, unsigned long stride, long sum,
-        Var *vsstart, Var *vsend)
-{
-  unsigned long i;
-  long hi = sum;
-  long lo = sum;
-  Var *vp;
-#if 0
-  printf("sum(vsstart+%ld, %lu, %lu, %ld, vsstart, vsstart+%ld)   ",vs-vsstart,nv,stride,sum,vsend-vsstart); fflush(stdout);
-  for (i=0, vp=vs; i<nv; i++, vp+=stride) {
-    assert(vp>=vsstart);
-    assert(vp<vsend);
-    assert(vp->id >= 0);
-    printf("v%ld ",vp->id);
-  }
-  printf("\n");
-#endif
-  for (i=0, vp=vs; i<nv; i++, vp+=stride) {
-    assert(vp>=vsstart);
-    assert(vp<vsend);
-    assert(vp->id >= 0);
-    hi -= vp->lo;
-    lo -= vp->hi;
-  }
-  /* hi is the upper bound of sum-sum(vs), lo the lower bound */
-  for (i=0, vp=vs; i<nv; i++, vp+=stride) {
-    int f = sethi(vp,hi+vp->lo); /* readd vp->lo to get an upper bound of vp */
-    assert(vp>=vsstart);
-    assert(vp<vsend);
-    assert(vp->id >= 0);
-    if (f != NO_CHANGE)
-      return f;
-    f = setlo(vp,lo+vp->hi); /* likewise, readd vp->hi */
-    if (f != NO_CHANGE)
-      return f;
-  }
-  return NO_CHANGE;
-}
     
 /* reduce the ranges of the variables as much as possible (with the
    constraints we use);  returns 1 if all variables still have a
@@ -218,26 +179,103 @@ try_to_propagate_alldiff_again:
   }
   /* sum constraints: each line and diagonal sums up to M */
   /* line sum constraints */
-  for (i=0; i<r; i++) {
-    int f;
-    /* line */
-    f = sum(vs+r*i+max(0,i+1-n), min(i+n,r+n-i-1), 1, M, vs, vs+r*r);
-    if (f== NO_SOLUTION)
-      return 0;
-    if (f== DID_CHANGE)
-      goto restart;
-    /* column (diagonal down-left in the hexagon) */
-    f = sum(vs+i+max(0,i+1-n)*r, min(i+n,r+n-i-1), r, M, vs, vs+r*r);
-    if (f== NO_SOLUTION)
-      return 0;
-    if (f== DID_CHANGE)
-      goto restart;
-    /* diagonal (down-right) */
-    f = sum(vs-n+1+i+max(0,n-i-1)*(r+1), min(i+n,r+n-i-1), r+1, M, vs, vs+r*r);
-    if (f== NO_SOLUTION)
-      return 0;
-    if (f== DID_CHANGE)
-      goto restart;
+  {
+    unsigned int i, j;
+    for (i=0; i<r; i++) {
+      unsigned long nv= min(i+n,r+n-i-1);
+      Var* linePtr= vs+r*i+max(0,i+1-n);
+      Var* columnPtr= vs+i+max(0,i+1-n)*r;
+      Var* diagonalPtr= vs-n+1+i+max(0,n-i-1)*(r+1);
+
+      long lineHi= M, columnHi= M, diagonalHi= M;
+      long lineLo= M, columnLo= M, diagonalLo= M;
+
+      Var *line, *column, *diagonal;
+      line= linePtr;
+      column = columnPtr;
+      diagonal = diagonalPtr;
+    
+      for (j=0; j<nv; j++) {
+        assert(line < vs+r*r);
+        assert(line->id >= 0);
+        lineHi -= line->lo;
+        lineLo -= line->hi;
+        line++;
+
+        assert(column < vs+r*r);
+        assert(column->id >= 0);
+        columnHi -= column->lo;
+        columnLo -= column->hi;
+        column+= r;
+
+        assert(diagonal < vs+r*r);
+        assert(diagonal->id >= 0);
+        diagonalHi -= diagonal->lo;
+        diagonalLo -= diagonal->hi;
+        diagonal+= r+1;
+      }
+
+
+      line= linePtr;
+      column= columnPtr;
+      diagonal= diagonalPtr;
+      for (j=0; j<nv; j++) {
+        {
+          int f = sethi(line, lineHi+line->lo); /* readd vp->lo to get an upper bound of vp */
+          if (f != NO_CHANGE) {
+            if(f== DID_CHANGE) {
+              goto restart; 
+            }
+            return 0;
+          }
+
+          f = setlo(line, lineLo+line->hi); /* likewise, readd vp->hi */
+          if (f != NO_CHANGE) {
+            if(f== DID_CHANGE) {
+              goto restart; 
+            }
+            return 0;
+          }
+          line++;
+        }
+
+        {
+          int f = sethi(column, columnHi+column->lo); /* readd vp->lo to get an upper bound of vp */
+          if (f != NO_CHANGE) {
+            if(f== DID_CHANGE) {
+              goto restart; 
+            }
+            return 0;
+          }
+          f = setlo(column, columnLo+column->hi); /* likewise, readd vp->hi */
+          if (f != NO_CHANGE) {
+            if(f== DID_CHANGE) {
+              goto restart; 
+            }
+            return 0;
+          }
+          column+= r;
+        }
+
+        {
+          int f = sethi(diagonal, diagonalHi+diagonal->lo); /* readd vp->lo to get an upper bound of vp */
+          if (f != NO_CHANGE) {
+            if(f== DID_CHANGE) {
+              goto restart; 
+            }
+            return 0;
+          }
+          f = setlo(diagonal, diagonalLo+diagonal->hi); /* likewise, readd vp->hi */
+          if (f != NO_CHANGE) {
+            if(f== DID_CHANGE) {
+              goto restart; 
+            }
+            return 0;
+          }
+          diagonal+= r+1;
+        }
+      }
+    }
   }
   return 1;
 }
