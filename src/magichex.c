@@ -159,6 +159,7 @@ try_to_propagate_alldiff_again:
       }
     }
   }
+
   /* the < constraints; all other corners are smaller than the first
      one (eliminate rotational symmetry) */
   for (i=1; i<sizeof(corners)/sizeof(corners[0]); i++) {
@@ -177,16 +178,18 @@ try_to_propagate_alldiff_again:
     if (f== DID_CHANGE) 
       goto restart;
   }
+ 
   /* sum constraints: each line and diagonal sums up to M */
   /* line sum constraints */
   {
     unsigned int i, j;
     for (i=0; i<r; i++) {
-      unsigned long nv= min(i+n,r+n-i-1);
+      unsigned long nv= min(i+n,r+n-i-1); // number of variables in this line/column/diagonal
       Var* linePtr= vs+r*i+max(0,i+1-n);
       Var* columnPtr= vs+i+max(0,i+1-n)*r;
       Var* diagonalPtr= vs-n+1+i+max(0,n-i-1)*(r+1);
 
+      // Reset all hi and lo sum offsets to the expected sum
       long lineHi= M, columnHi= M, diagonalHi= M;
       long lineLo= M, columnLo= M, diagonalLo= M;
 
@@ -195,6 +198,7 @@ try_to_propagate_alldiff_again:
       column = columnPtr;
       diagonal = diagonalPtr;
     
+      // Compute the hi and lo offsets to the expected sum
       for (j=0; j<nv; j++) {
         assert(line < vs+r*r);
         assert(line->id >= 0);
@@ -219,12 +223,21 @@ try_to_propagate_alldiff_again:
       line= linePtr;
       column= columnPtr;
       diagonal= diagonalPtr;
+      
+      // Re-add each hi and lo per variable and try setting tighter boundaries
       for (j=0; j<nv; j++) {
         {
           int f = sethi(line, lineHi+line->lo); /* readd vp->lo to get an upper bound of vp */
           if (f != NO_CHANGE) {
             if(f== DID_CHANGE) {
-              goto restart; 
+              if( line->hi == line->lo ) {
+                 if( occupation[line->lo-o] < r*r ) {
+                  return 0;
+                }
+                occupation[line->lo-o]= line- vs;
+              }
+
+              goto restart_propagate_alldifferent;
             }
             return 0;
           }
@@ -232,7 +245,14 @@ try_to_propagate_alldiff_again:
           f = setlo(line, lineLo+line->hi); /* likewise, readd vp->hi */
           if (f != NO_CHANGE) {
             if(f== DID_CHANGE) {
-              goto restart; 
+              if( line->hi == line->lo ) {
+                 if( occupation[line->lo-o] < r*r ) {
+                  return 0;
+                }
+                occupation[line->lo-o]= line- vs;
+              }
+
+              goto restart_propagate_alldifferent;
             }
             return 0;
           }
@@ -243,14 +263,28 @@ try_to_propagate_alldiff_again:
           int f = sethi(column, columnHi+column->lo); /* readd vp->lo to get an upper bound of vp */
           if (f != NO_CHANGE) {
             if(f== DID_CHANGE) {
-              goto restart; 
+              if (column->hi == column->lo) {
+                if (occupation[column->lo - o] < r * r) {
+                  return 0;
+                }
+                occupation[column->lo - o] = column - vs;
+              }
+
+              goto restart_propagate_alldifferent;
             }
             return 0;
           }
           f = setlo(column, columnLo+column->hi); /* likewise, readd vp->hi */
           if (f != NO_CHANGE) {
             if(f== DID_CHANGE) {
-              goto restart; 
+              if( column->hi == column->lo ) {
+                 if( occupation[column->lo-o] < r*r ) {
+                  return 0;
+                }
+                occupation[column->lo - o] = column - vs;
+              }
+
+              goto restart_propagate_alldifferent;
             }
             return 0;
           }
@@ -261,14 +295,28 @@ try_to_propagate_alldiff_again:
           int f = sethi(diagonal, diagonalHi+diagonal->lo); /* readd vp->lo to get an upper bound of vp */
           if (f != NO_CHANGE) {
             if(f== DID_CHANGE) {
-              goto restart; 
+              if( diagonal->hi == diagonal->lo ) {
+                 if( occupation[diagonal->lo-o] < r*r ) {
+                  return 0;
+                }
+                occupation[diagonal->lo - o] = diagonal - vs;
+              }
+
+              goto restart_propagate_alldifferent;
             }
             return 0;
           }
           f = setlo(diagonal, diagonalLo+diagonal->hi); /* likewise, readd vp->hi */
           if (f != NO_CHANGE) {
             if(f== DID_CHANGE) {
-              goto restart; 
+              if( diagonal->hi == diagonal->lo ) {
+                 if( occupation[diagonal->lo-o] < r*r ) {
+                  return 0;
+                }
+                occupation[diagonal->lo-o]= diagonal- vs;
+              }
+
+              goto restart_propagate_alldifferent;
             }
             return 0;
           }
