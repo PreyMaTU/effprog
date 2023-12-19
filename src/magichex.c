@@ -393,7 +393,7 @@ static void printhexagon(unsigned long n, Var vs[])
 
 /* assign values to vs[index] and all later variables in vs such that
    the constraints hold */
-static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[], unsigned long numRemaining)
+static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[], unsigned long numRemaining, unsigned long numPreorderedRemaining)
 {
   long i;
   unsigned long r = 2*n-1;
@@ -404,19 +404,25 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[
     printf("leafs visited: %lu\n\n",leafs);
     return;
   }
-  
-  // Find the var with the highest lower bound
-  Var *vp= vs+ remaining[0];
-  unsigned long takeIndex= 0;
-  for( i= 1; i<numRemaining; i++ ) {
-    if( vs[remaining[i]].lo > vp->lo ) {
-      vp= vs+ remaining[i];
-      takeIndex = i;
-    }
-  }
 
-  // Unstable take vp from array of remaining vars
-  remaining[takeIndex]= remaining[--numRemaining];
+  Var *vp;  
+  if( numRemaining > numPreorderedRemaining ) {
+    vp= vs+ remaining[--numRemaining];
+
+  } else {
+    // Find the var with the highest lower bound
+    vp= vs+ remaining[0];
+    unsigned long takeIndex= 0;
+    for( i= 1; i<numRemaining; i++ ) {
+      if( vs[remaining[i]].lo > vp->lo ) {
+        vp= vs+ remaining[i];
+        takeIndex = i;
+      }
+    }
+
+    // Unstable take vp from array of remaining vars
+    remaining[takeIndex]= remaining[--numRemaining];
+  }
 
   for (i = vp->lo; i <= vp->hi; i++) {
     Var newvs[r*r];
@@ -434,7 +440,7 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[
     printf("\n");
 #endif
     if (solve(n,d,newvs))
-      labeling(n, d, newvs, remaining, numRemaining);
+      labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
     else
       leafs++;
   }
@@ -511,8 +517,32 @@ int main(int argc, char *argv[])
     }
   }
 
+  // Index of last pre-ordered element or array length if none are pre-ordered
+  unsigned long numPreorderedRemaining= numRemaining;
+  
+  unsigned long corners[] = {0, n-1, (n-1)*r+0, (n-1)*r+r-1, (r-1)*r+n-1, (r-1)*r+r-1};
+  for(i = 0; i!= sizeof(corners)/sizeof(unsigned long); i++) {
+    for( j= 0; j< numPreorderedRemaining; j++ ) {
+      if( remaining[j] == corners[i] ) {
+        numPreorderedRemaining--;
+        unsigned long temp= remaining[j];
+        remaining[j]= remaining[numPreorderedRemaining];
+        remaining[numPreorderedRemaining]= temp;
+        break;
+      }
+    }
+    
+    // Preorder a single node to kick start the heuristic
+    if( numRemaining - numPreorderedRemaining >= 1 ) {
+      break;
+    }
+  }
 
-  labeling(n,d,vs, remaining, numRemaining);
+  // for( i= 0; i!= numRemaining; i++) {
+  //   printf("remaining [%ld]: %ld (corner %d)\n", i, remaining[i], i >= numPreorderedRemaining);
+  // }
+
+  labeling(n,d,vs, remaining, numRemaining, numPreorderedRemaining);
   printf("%lu solution(s), %lu leafs visited\n",solutions, leafs);
   //(void)solve(n, d, vs);
   //printhexagon(n, vs);
