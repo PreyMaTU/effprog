@@ -136,52 +136,60 @@ static int solve(unsigned long n, long d, Var vs[])
     change= 0;
 
     /* now propagate the alldifferent results to the bounds */
-    restart_alldifferent_for_loop:
-    for (i=0; i<r*r; i++) {
-      Var *v = &vs[i];
-      if (v->lo < v->hi) {
-        // This loop tries to improve the variable repeatedly
-        do {
 
-          // The current lower bound is impossible because the value is already fixed
-          // by another variable -> try to move it up
-          if (occupation[v->lo-o] < r*r) {
-            v->lo++;
-            if( v->lo == v->hi ) {
-              if( occupation[v->lo-o] < r*r ) {
-                return 0;
+    unsigned int alldiffRestart;
+    do {
+      alldiffRestart= 0;
+
+      for (i=0; i<r*r; i++) {
+        Var *v = &vs[i];
+        if (v->lo < v->hi) {
+          // This loop tries to improve the variable repeatedly
+          do {
+
+            // The current lower bound is impossible because the value is already fixed
+            // by another variable -> try to move it up
+            if (occupation[v->lo-o] < r*r) {
+              v->lo++;
+              if( v->lo == v->hi ) {
+                if( occupation[v->lo-o] < r*r ) {
+                  return 0;
+                }
+                occupation[v->lo-o]= i;
+
+                // Restart the for loop
+                alldiffRestart= 1;
+                break;
               }
-              occupation[v->lo-o]= i;
-
-              // Restart the for loop
-              goto restart_alldifferent_for_loop;
+              // Try to improve again -> restart while loop
+              continue;
             }
-            // Try to improve again -> restart while loop
-            continue;
-          }
 
-          // The current upper bound is impossible because the value is already fixed
-          // by another variable -> try to move it down
-          if (occupation[v->hi-o] < r*r) {
-            v->hi--;
-            if( v->lo == v->hi ) {
-              if( occupation[v->lo-o] < r*r ) {
-                return 0;
+            // The current upper bound is impossible because the value is already fixed
+            // by another variable -> try to move it down
+            if (occupation[v->hi-o] < r*r) {
+              v->hi--;
+              if( v->lo == v->hi ) {
+                if( occupation[v->lo-o] < r*r ) {
+                  return 0;
+                }
+                occupation[v->lo-o]= i;
+                
+                // Restart the for loop
+                alldiffRestart= 1;
+                break;
               }
-              occupation[v->lo-o]= i;
-              
-              // Restart the for loop
-              goto restart_alldifferent_for_loop;
+              // Try to improve again -> restart while loop
+              continue;
             }
-            // Try to improve again -> restart while loop
-            continue;
-          }
 
-          // End the while loop if no improvements happened
-          break;
-        } while( 1 );
+            // End the while loop if no improvements happened
+            break;
+          } while( 1 );
+        }
       }
-    }
+
+    } while( alldiffRestart );
 
     /* the < constraints; all other corners are smaller than the first
       one (eliminate rotational symmetry) */
