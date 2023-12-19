@@ -424,29 +424,60 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[
     remaining[takeIndex]= remaining[--numRemaining];
   }
 
-  for (i = vp->lo; i <= vp->hi; i++) {
-    Var newvs[r*r];
-    Var* newvp=newvs+(vp-vs);
-    memmove(newvs,vs,r*r*sizeof(Var));
-    newvp->lo = i;
-    newvp->hi = i;
-#if 0
-    for (Var *v = newvs; v<=newvp; v++) {
-      if (v->id >= 0) {
-        assert(v->lo == v->hi);
-        printf(" %ld",v->lo); fflush(stdout);
-      }
+  // Allocate space on stack for new variable states
+  Var newvs[r*r];
+  long hi= vp->hi, lo= vp->lo;
+  long range= hi - lo;
+  
+  // Do not further bisect boundaries if a value would get fixed (lo == hi)
+  if( range < 4 ) {
+    
+    // Try the remaining values iteratively
+    for (i = lo; i <= hi; i++) {
+      Var* newvp=newvs+(vp-vs);
+      memmove(newvs,vs,r*r*sizeof(Var));
+
+      newvp->lo = i;
+      newvp->hi = i;
+      
+      if (solve(n,d,newvs))
+        labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
+      else
+        leafs++;
     }
-    printf("\n");
-#endif
-    if (solve(n,d,newvs))
-      labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
-    else
-      leafs++;
+
+    // Append the taken variable index back onto the array of remaining vars
+    remaining[numRemaining++]= vp-vs;
+    return;
   }
 
-  // Append the taken variable index back onto the array of remaining vars
+  // Bisect the boundary range of the variable by calling labeling twice
+  // The range is split into (L, M) and (M+1, H)
+  long middle= lo+ range / 2;
+
+  // Append the taken variable index back to the array before calling labeling,
+  // as we will only split its range and it needs to be retaken later
   remaining[numRemaining++]= vp-vs;
+
+  // Split range (L, M)
+  Var* newvp=newvs+(vp-vs);
+  memmove(newvs,vs,r*r*sizeof(Var));
+  newvp->lo = lo;
+  newvp->hi = middle;
+  
+  if (solve(n,d,newvs))
+    labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
+  else
+    leafs++;
+
+  // Split range (M+1, H)
+  memmove(newvs,vs,r*r*sizeof(Var));
+  newvp->lo= middle+1;
+  newvp->hi= hi;
+  if (solve(n,d,newvs))
+    labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
+  else
+    leafs++;
 }
 
 static Var *makehexagon(unsigned long n, long d)
