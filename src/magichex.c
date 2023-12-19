@@ -393,23 +393,34 @@ static void printhexagon(unsigned long n, Var vs[])
 
 /* assign values to vs[index] and all later variables in vs such that
    the constraints hold */
-static void labeling(unsigned long n, long d, Var vs[], unsigned long index)
+static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[], unsigned long numRemaining)
 {
   long i;
   unsigned long r = 2*n-1;
-  Var *vp = vs+index;
-  if (index >= r*r) {
+  if ( !numRemaining ) {
     printhexagon(n,vs);
     solutions++;
     leafs++;
     printf("leafs visited: %lu\n\n",leafs);
     return;
   }
-  if (vp->id < 0)
-    return labeling(n,d,vs,index+1);
+  
+  // Find the var with the highest lower bound
+  Var *vp= vs+ remaining[0];
+  unsigned long takeIndex= 0;
+  for( i= 1; i<numRemaining; i++ ) {
+    if( vs[remaining[i]].lo > vp->lo ) {
+      vp= vs+ remaining[i];
+      takeIndex = i;
+    }
+  }
+
+  // Unstable take vp from array of remaining vars
+  remaining[takeIndex]= remaining[--numRemaining];
+
   for (i = vp->lo; i <= vp->hi; i++) {
     Var newvs[r*r];
-    Var* newvp=newvs+index;
+    Var* newvp=newvs+(vp-vs);
     memmove(newvs,vs,r*r*sizeof(Var));
     newvp->lo = i;
     newvp->hi = i;
@@ -423,10 +434,13 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long index)
     printf("\n");
 #endif
     if (solve(n,d,newvs))
-      labeling(n,d,newvs,index+1);
+      labeling(n, d, newvs, remaining, numRemaining);
     else
       leafs++;
   }
+
+  // Append the taken variable index back onto the array of remaining vars
+  remaining[numRemaining++]= vp-vs;
 }
 
 static Var *makehexagon(unsigned long n, long d)
@@ -486,7 +500,19 @@ int main(int argc, char *argv[])
     vs[j].lo = vs[j].hi = strtol(argv[i],NULL,10);
     j++;
   }
-  labeling(n,d,vs,0);
+
+  unsigned long r= 2*n-1;
+  unsigned long H= 3*n*n-3*n+1;
+  unsigned long *remaining= (unsigned long*) calloc(H, sizeof(unsigned long));
+  unsigned long numRemaining= 0;
+  for(i= 0; i < r*r; i++ ) {
+    if( vs[i].id >= 0 && vs[i].lo != vs[i].hi ) {
+      remaining[ numRemaining++ ]= i;
+    }
+  }
+
+
+  labeling(n,d,vs, remaining, numRemaining);
   printf("%lu solution(s), %lu leafs visited\n",solutions, leafs);
   //(void)solve(n, d, vs);
   //printhexagon(n, vs);
