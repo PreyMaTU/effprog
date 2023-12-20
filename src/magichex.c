@@ -46,6 +46,7 @@ typedef struct Hexagon {
    highest value = dr + (H-1)/2
 */
 
+
 #define NO_SOLUTION (0)
 #define DID_CHANGE  (1)
 #define NO_CHANGE   (2)
@@ -109,7 +110,7 @@ static int lessthan(Var *v1, Var *v2)
     return f;
   return (setlo(v2, v1->lo+1));
 }
-    
+
 /* reduce the ranges of the variables as much as possible (with the
    constraints we use);  returns 1 if all variables still have a
    non-empty range left, 0 if one has an empty range */
@@ -398,93 +399,255 @@ static void printhexagon(unsigned long n, Var vs[])
   }
 }
 
+#define STATE_START (0)
+#define STATE_LOOP_RUN  (1)
+#define STATE_LOOP_REENTER  (2)
+#define STATE_BISECT2_RUN  (3)
+#define STATE_BISECT2_REENTER  (4)
+#define STATE_BISECT2_RETURN (5)
+#define STATE_DONE (6)
+
 /* assign values to vs[index] and all later variables in vs such that
    the constraints hold */
 static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[], unsigned long numRemaining, unsigned long numPreorderedRemaining)
 {
-  long i;
+  unsigned long state= STATE_START;
+  unsigned long H= 3*n*n-3*n+1;
   unsigned long r = 2*n-1;
-  if ( !numRemaining ) {
-    printhexagon(n,vs);
-    solutions++;
-    leafs++;
-    printf("leafs visited: %lu\n\n",leafs);
-    return;
+  long logH= 0, tempH= H;
+  while( (tempH /= 2) > 0 ) {
+    logH++;
   }
+  unsigned char* stack= (unsigned char*) malloc( H* logH* (r*r* sizeof(Var)+ 16) );
 
-  Var *vp;  
-  if( numRemaining > numPreorderedRemaining ) {
-    vp= vs+ remaining[--numRemaining];
+  *((unsigned long*)stack)= STATE_DONE;
+  stack+= sizeof(unsigned long);
 
-  } else {
-    // Find the var with the highest lower bound
-    vp= vs+ remaining[0];
-    unsigned long takeIndex= 0;
-    for( i= 1; i<numRemaining; i++ ) {
-      if( vs[remaining[i]].lo > vp->lo ) {
-        vp= vs+ remaining[i];
-        takeIndex = i;
+  long i, hi, lo, middle;
+  Var *newvs, *newvp;
+
+  while( 1 ) {
+    switch (state)
+    {
+    case STATE_START: {
+      Var *vp;  
+      if( numRemaining > numPreorderedRemaining ) {
+        vp= vs+ remaining[--numRemaining];
+
+      } else {
+        // Find the var with the highest lower bound
+        vp= vs+ remaining[0];
+        unsigned long takeIndex= 0;
+        for(long i= 1; i<numRemaining; i++ ) {
+          if( vs[remaining[i]].lo > vp->lo ) {
+            vp= vs+ remaining[i];
+            takeIndex = i;
+          }
+        }
+
+        // Unstable take vp from array of remaining vars
+        remaining[takeIndex]= remaining[--numRemaining];
+      }
+
+      // Allocate space on stack for new variable states
+      newvs= (Var*)stack;
+      stack+= r*r*sizeof(Var);
+      newvp=newvs+(vp-vs);
+
+
+      hi= vp->hi;
+      lo= vp->lo;
+      long range= hi - lo;
+
+      // Do not further bisect boundaries if a value would get fixed (lo == hi)
+      if( range < 4 ) {
+        
+        // Try the remaining values iteratively
+        i= lo;
+        state= STATE_LOOP_RUN;
+        continue;
+      }
+
+      // Bisect the boundary range of the variable by calling labeling twice
+      // The range is split into (L, M) and (M+1, H)
+      middle= lo+ range / 2;
+
+      // Append the taken variable index back to the array before calling labeling,
+      // as we will only split its range and it needs to be retaken later
+      remaining[numRemaining++]= vp-vs;
+
+      // Split range (L, M)
+      // memmove(newvs,vs,r*r*sizeof(Var));
+      for( long j = 0; j < r*r; j++ ) {
+        newvs[j]= vs[j];
+      }
+      newvp->lo = lo;
+      newvp->hi = middle;
+      
+      if (solve(n,d,newvs)) {
+
+        // Stack: ..., state, vs[] -> ..., state, vs[], middle, hi, numRemaining, vs, newvp, STATE_BISECT2_REENTER
+        *((long*)stack)= middle;
+        stack+= sizeof(long);
+        *((long*)stack)= hi;
+        stack+= sizeof(long);
+        *((unsigned long*)stack)= numRemaining;
+        stack+= sizeof(unsigned long);
+        *((Var**)stack)= vs;
+        stack+= sizeof(Var*);
+        *((Var**)stack)= newvp;
+        stack+= sizeof(Var*);
+        *((unsigned long*)stack)= STATE_BISECT2_REENTER;
+        stack+= sizeof(unsigned long);
+
+        vs= newvs;
+        state= STATE_START;
+        continue;
+
+      } else {
+        leafs++;
+        state= STATE_BISECT2_RUN;
+        continue;
       }
     }
+    break;
 
-    // Unstable take vp from array of remaining vars
-    remaining[takeIndex]= remaining[--numRemaining];
-  }
+    case STATE_LOOP_REENTER: 
+      // Stack: ..., state, vs[], i+1, hi, numRemaining, vs, newvp -> ..., state, vs[]
+      stack -= sizeof(Var*);
+      newvp= *((Var**) stack);
+      stack -= sizeof(Var*);
+      vs= *((Var**) stack);
+      stack -= sizeof(unsigned long);
+      numRemaining= *((unsigned long*) stack);
+      stack -= sizeof(long);
+      hi= *((long*) stack);
+      stack -= sizeof(long);
+      i= *((long*) stack);
 
-  // Allocate space on stack for new variable states
-  Var newvs[r*r];
-  long hi= vp->hi, lo= vp->lo;
-  long range= hi - lo;
-  
-  // Do not further bisect boundaries if a value would get fixed (lo == hi)
-  if( range < 4 ) {
-    
-    // Try the remaining values iteratively
-    for (i = lo; i <= hi; i++) {
-      Var* newvp=newvs+(vp-vs);
-      memmove(newvs,vs,r*r*sizeof(Var));
+      newvs= (Var*)(stack- r*r*sizeof(Var));
+
+    case STATE_LOOP_RUN: {
+      if( i > hi ) {
+        // Append the taken variable index back onto the array of remaining vars
+        remaining[numRemaining++]= newvp-newvs;
+
+        // Return
+        // Stack: ..., state, vs[] -> ...
+        stack -= r*r*sizeof(Var);
+        stack -= sizeof(unsigned long);
+        state= *(unsigned long*)stack;
+        continue;
+      }
+      
+      // memmove(newvs,vs,r*r*sizeof(Var));
+      for( long j = 0; j < r*r; j++ ) {
+        newvs[j]= vs[j];
+      }
 
       newvp->lo = i;
       newvp->hi = i;
-      
-      if (solve(n,d,newvs))
-        labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
-      else
+
+      if (solve(n,d,newvs)) {
+        if ( !numRemaining ) {
+          printhexagon(n,newvs);
+          solutions++;
+          leafs++;
+          printf("leafs visited: %lu\n\n",leafs);
+
+          i++;
+          state= STATE_LOOP_RUN;
+          continue;
+        }
+
+        // Stack: ..., state, vs[] -> ..., state, vs[], i+1, hi, numRemaining, vs, newvp, STATE_LOOP_REENTER
+        *((long*)stack)= i+1;
+        stack+= sizeof(long);
+        *((long*)stack)= hi;
+        stack+= sizeof(long);
+        *((unsigned long*)stack)= numRemaining;
+        stack+= sizeof(unsigned long);
+        *((Var**)stack)= vs;
+        stack+= sizeof(Var*);
+        *((Var**)stack)= newvp;
+        stack+= sizeof(Var*);
+        *((unsigned long*)stack)= STATE_LOOP_REENTER;
+        stack+= sizeof(unsigned long);
+
+        vs= newvs;
+        state= STATE_START;
+        continue;
+        
+      } else {
         leafs++;
+      }
+
+      i++;
+      state= STATE_LOOP_RUN;
+      continue;
     }
+    break;
+    
+    case STATE_BISECT2_REENTER:
+      // Stack: ..., state, vs[], middle, hi, numRemaining, vs, newvp -> ..., state, vs[]
+      stack -= sizeof(Var*);
+      newvp= *((Var**) stack);
+      stack -= sizeof(Var*);
+      vs= *((Var**) stack);
+      stack -= sizeof(unsigned long);
+      numRemaining= *((unsigned long*) stack);
+      stack -= sizeof(long);
+      hi= *((long*) stack);
+      stack -= sizeof(long);
+      middle= *((long*) stack);
 
-    // Append the taken variable index back onto the array of remaining vars
-    remaining[numRemaining++]= vp-vs;
-    return;
+      newvs= (Var*)(stack- r*r*sizeof(Var));
+
+    case STATE_BISECT2_RUN: {
+      // Split range (M+1, H)
+      //memmove(newvs,vs,r*r*sizeof(Var));
+      for( long j = 0; j < r*r; j++ ) {
+        newvs[j]= vs[j];
+      }
+      newvp->lo= middle+1;
+      newvp->hi= hi;
+
+      if (solve(n,d,newvs)) {
+
+        // Call labeling with tail call optimization
+        // Stack: ..., state, vs[] -> ..., state, vs[], STATE_BISECT2_RETURN
+        vs= newvs;
+        *((unsigned long*)stack)= STATE_BISECT2_RETURN;
+        stack+= sizeof(unsigned long);
+        state= STATE_START;
+        continue;
+
+      } else {
+        leafs++;
+
+        // Return
+        // Stack: ..., state, vs[] -> ...
+        stack -= r*r*sizeof(Var);
+        stack -= sizeof(unsigned long);
+        state= *(unsigned long*)stack;
+        continue;
+      }
+    }
+    break;
+
+    case STATE_BISECT2_RETURN:
+      // Return
+      // Stack: ..., state, vs[] -> ...
+      stack -= r*r*sizeof(Var);
+      stack -= sizeof(unsigned long);
+      state= *(unsigned long*)stack;
+      continue;
+
+    case STATE_DONE:
+      return;
+
+    }
   }
-
-  // Bisect the boundary range of the variable by calling labeling twice
-  // The range is split into (L, M) and (M+1, H)
-  long middle= lo+ range / 2;
-
-  // Append the taken variable index back to the array before calling labeling,
-  // as we will only split its range and it needs to be retaken later
-  remaining[numRemaining++]= vp-vs;
-
-  // Split range (L, M)
-  Var* newvp=newvs+(vp-vs);
-  memmove(newvs,vs,r*r*sizeof(Var));
-  newvp->lo = lo;
-  newvp->hi = middle;
-  
-  if (solve(n,d,newvs))
-    labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
-  else
-    leafs++;
-
-  // Split range (M+1, H)
-  memmove(newvs,vs,r*r*sizeof(Var));
-  newvp->lo= middle+1;
-  newvp->hi= hi;
-  if (solve(n,d,newvs))
-    labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
-  else
-    leafs++;
 }
 
 static Hexagon makehexagon(unsigned long n, long d)
