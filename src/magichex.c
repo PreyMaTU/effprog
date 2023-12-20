@@ -7,10 +7,17 @@ typedef struct var Var;
 
 /* constraint variable; if lo==hi, this is the variable's value */
 typedef struct var {
+#ifndef NDEBUG
   long id; /* variable id; id<0 if the variable is not part of the hexagon */
+#endif
   long lo; /* lower bound */
   long hi; /* upper bound */
 } Var;
+
+typedef struct Hexagon {
+  Var *vs;
+  unsigned char *usageMatrix;
+} Hexagon;
 
 /* representation of a hexagon of order n: (2n-1)^2 square array
    for a hexagon of order 2:
@@ -480,17 +487,24 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[
     leafs++;
 }
 
-static Var *makehexagon(unsigned long n, long d)
+static Hexagon makehexagon(unsigned long n, long d)
 {
   unsigned long i,j;
   unsigned long r = 2*n-1;
   unsigned long H = 3*n*n-3*n+1;
   
   Var *vs = (Var*) calloc(r*r,sizeof(Var));
+  unsigned char *usageMatrix= (unsigned char*) calloc(r*r, sizeof(unsigned char));
+#ifndef NDEBUG
   unsigned long id = 0;
+#endif
   for (i=0; i<r*r; i++) {
     Var *v = &vs[i];
+    unsigned char *m= &usageMatrix[i];
+#ifndef NDEBUG
     v->id = -1;
+#endif
+    *m= 0;
     v->lo = 1;
     v->hi = 0;
   }
@@ -505,13 +519,18 @@ static Var *makehexagon(unsigned long n, long d)
       assert(i<r);
       assert(j<r);
       Var *v=&vs[i*r+j];
+      unsigned char* m= &usageMatrix[i*r+j];
       assert(v->lo>v->hi);
+#ifndef NDEBUG
       v->id = id++;
+#endif
+      *m= 1;
       v->lo = d*r - (H-1)/2;
       v->hi = d*r + (H-1)/2;
     }
   }
-  return vs;
+  Hexagon hexagon= { vs, usageMatrix };
+  return hexagon;
 }
 
 int main(int argc, char *argv[])
@@ -530,9 +549,11 @@ int main(int argc, char *argv[])
     exit(1);
   }
   d = strtol(argv[2],NULL,10);
-  Var *vs = makehexagon(n,d);
+  Hexagon hexagon = makehexagon(n,d);
+  Var *vs= hexagon.vs;
+  unsigned char *usageMatrix= hexagon.usageMatrix;
   for (i=3; i<argc; i++) {
-    while (vs[j].id < 0)
+    while ( !usageMatrix[j] )
       j++;
     vs[j].lo = vs[j].hi = strtol(argv[i],NULL,10);
     j++;
@@ -543,7 +564,7 @@ int main(int argc, char *argv[])
   unsigned long *remaining= (unsigned long*) calloc(H, sizeof(unsigned long));
   unsigned long numRemaining= 0;
   for(i= 0; i < r*r; i++ ) {
-    if( vs[i].id >= 0 && vs[i].lo != vs[i].hi ) {
+    if( usageMatrix[i] && vs[i].lo != vs[i].hi ) {
       remaining[ numRemaining++ ]= i;
     }
   }
