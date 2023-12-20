@@ -1,5 +1,5 @@
 FILES=HEADER.html Makefile magichex.c reference-output
-CFLAGS=-Wall -O3
+CFLAGS=-Wall -O3 -DNDEBUG
 #CFLAGS=-Wall -O -g
 LDFLAGS=-g
 

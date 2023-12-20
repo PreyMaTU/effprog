@@ -442,7 +442,10 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[
     // Try the remaining values iteratively
     for (i = lo; i <= hi; i++) {
       Var* newvp=newvs+(vp-vs);
-      memmove(newvs,vs,r*r*sizeof(Var));
+      // memmove(newvs,vs,r*r*sizeof(Var));
+      for( long j = 0; j < r*r; j++ ) {
+        newvs[j]= vs[j];
+      }
 
       newvp->lo = i;
       newvp->hi = i;
@@ -468,7 +471,10 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[
 
   // Split range (L, M)
   Var* newvp=newvs+(vp-vs);
-  memmove(newvs,vs,r*r*sizeof(Var));
+  // memmove(newvs,vs,r*r*sizeof(Var));
+  for( long j = 0; j < r*r; j++ ) {
+    newvs[j]= vs[j];
+  }
   newvp->lo = lo;
   newvp->hi = middle;
   
@@ -478,7 +484,10 @@ static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[
     leafs++;
 
   // Split range (M+1, H)
-  memmove(newvs,vs,r*r*sizeof(Var));
+  // memmove(newvs,vs,r*r*sizeof(Var));
+  for( long j = 0; j < r*r; j++ ) {
+    newvs[j]= vs[j];
+  }
   newvp->lo= middle+1;
   newvp->hi= hi;
   if (solve(n,d,newvs))
