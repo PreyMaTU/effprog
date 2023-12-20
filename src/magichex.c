@@ -398,93 +398,222 @@ static void printhexagon(unsigned long n, Var vs[])
   }
 }
 
+typedef struct NewBacklogEntry {
+  Var* vs;
+  unsigned long* remaining;
+} NewBacklogEntry;
+
+static NewBacklogEntry allocateBacklogEntry(
+  unsigned char** writePtr,
+  unsigned char* end,
+  unsigned long numVars,
+  unsigned long numRemaining
+) {
+  unsigned long vsBytes= numVars*sizeof(Var);
+  unsigned long remBytes= numRemaining*sizeof(unsigned long);
+  assert( *writePtr+ sizeof(unsigned long)+ vsBytes+ remBytes <= end );
+
+  NewBacklogEntry entry;
+
+  *((unsigned long*)*writePtr)= numRemaining;
+  *writePtr+= sizeof(unsigned long);
+
+  // Make space for vars
+  entry.vs= (Var*) *writePtr;
+  *writePtr+= vsBytes;
+
+  // Make space for remaining var indices
+  entry.remaining= (unsigned long*) *writePtr;
+  *writePtr+= remBytes;
+
+  return entry;
+}
+
+static void releaseBacklogEntry(
+  unsigned char **writePtr, 
+  unsigned char *readPtr,
+  NewBacklogEntry entry
+) {
+  if( !entry.vs ) {
+    return;
+  }
+
+  assert( ((unsigned char*)entry.vs) -sizeof(unsigned long) >= readPtr );
+  *writePtr= ((unsigned char*)entry.vs) -sizeof(unsigned long);
+}
+
+static void pushBacklog(
+  unsigned char** writePtr,
+  unsigned char* end,
+  Var vs[],
+  unsigned long numVars,
+  unsigned long remaining[],
+  unsigned long numRemaining
+) {
+  NewBacklogEntry entry= allocateBacklogEntry( writePtr, end, numVars, numRemaining );
+
+  // unsigned long vsBytes= numVars*sizeof(Var);
+  // unsigned long remBytes= numRemaining*sizeof(unsigned long);
+  // memcpy(entry.vs, vs, vsBytes);
+  // memcpy(entry.remaining, remaining, remBytes);
+
+  for( long i= 0; i!= numVars; i++ ) {
+    entry.vs[i]= vs[i];
+  }
+
+  for( long i= 0; i!= numRemaining; i++ ) {
+    entry.remaining[i]= remaining[i];
+  }
+}
+
+static void pushBacklogEntry(
+  NewBacklogEntry* entry,
+  unsigned long remaining[],
+  unsigned long numRemaining
+) {
+  // unsigned long remBytes= numRemaining*sizeof(unsigned long);
+  // memcpy(entry->remaining, remaining, remBytes);
+  for( long i= 0; i!= numRemaining; i++ ) {
+    entry->remaining[i]= remaining[i];
+  }
+  entry->vs= 0;
+  entry->remaining= 0;
+}
+
+static void popBacklog(
+  unsigned char** readPtr,
+  unsigned char* writePtr,
+  Var **vs,
+  unsigned long numVars,
+  unsigned long **remaining,
+  unsigned long *numRemaining
+) {
+  assert( *readPtr + sizeof(unsigned long) < writePtr );
+
+  *numRemaining= *((unsigned long*)*readPtr);
+  *readPtr+= sizeof(unsigned long);
+
+  unsigned long vsBytes= numVars*sizeof(Var);
+  unsigned long remBytes= *numRemaining*sizeof(unsigned long);
+  assert( *readPtr+ vsBytes+ remBytes <= writePtr );
+
+  *vs= (Var*)*readPtr;
+  *readPtr+= vsBytes;
+
+  *remaining= (unsigned long*)*readPtr;
+  *readPtr+= remBytes;
+}
+
 /* assign values to vs[index] and all later variables in vs such that
    the constraints hold */
 static void labeling(unsigned long n, long d, Var vs[], unsigned long remaining[], unsigned long numRemaining, unsigned long numPreorderedRemaining)
 {
-  long i;
+  // We just allocate a 1GiB of memory and hope it's enough
+  unsigned long size= 1024* 1024* 1024;
+  unsigned char* backlog= (unsigned char*)malloc( size );
+  unsigned char* end= backlog+ size;
+
+  unsigned char* readPtr= backlog, *writePtr= backlog;
+
   unsigned long r = 2*n-1;
-  if ( !numRemaining ) {
-    printhexagon(n,vs);
-    solutions++;
-    leafs++;
-    printf("leafs visited: %lu\n\n",leafs);
-    return;
-  }
+  unsigned long numVars= r*r;
+  pushBacklog( &writePtr, end, vs, numVars, remaining, numRemaining);
 
-  Var *vp;  
-  if( numRemaining > numPreorderedRemaining ) {
-    vp= vs+ remaining[--numRemaining];
+  while( readPtr < writePtr ) {
+    popBacklog(&readPtr, writePtr, &vs, numVars, &remaining, &numRemaining);
 
-  } else {
-    // Find the var with the highest lower bound
-    vp= vs+ remaining[0];
-    unsigned long takeIndex= 0;
-    for( i= 1; i<numRemaining; i++ ) {
-      if( vs[remaining[i]].lo > vp->lo ) {
-        vp= vs+ remaining[i];
-        takeIndex = i;
+    Var *vp;  
+    if( numRemaining > numPreorderedRemaining ) {
+      vp= vs+ remaining[--numRemaining];
+
+    } else {
+      // Find the var with the highest lower bound
+      vp= vs+ remaining[0];
+      unsigned long takeIndex= 0;
+      for( long i= 1; i<numRemaining; i++ ) {
+        if( vs[remaining[i]].lo > vp->lo ) {
+          vp= vs+ remaining[i];
+          takeIndex = i;
+        }
       }
+
+      // Unstable take vp from array of remaining vars
+      remaining[takeIndex]= remaining[--numRemaining];
     }
 
-    // Unstable take vp from array of remaining vars
-    remaining[takeIndex]= remaining[--numRemaining];
-  }
-
-  // Allocate space on stack for new variable states
-  Var newvs[r*r];
-  long hi= vp->hi, lo= vp->lo;
-  long range= hi - lo;
-  
-  // Do not further bisect boundaries if a value would get fixed (lo == hi)
-  if( range < 4 ) {
+    long hi= vp->hi, lo= vp->lo;
+    long range= hi - lo;
     
-    // Try the remaining values iteratively
-    for (i = lo; i <= hi; i++) {
-      Var* newvp=newvs+(vp-vs);
-      memmove(newvs,vs,r*r*sizeof(Var));
+    // Do not further bisect boundaries if a value would get fixed (lo == hi)
+    if( range < 4 ) {
+      NewBacklogEntry entry= allocateBacklogEntry(&writePtr, end, numVars, numRemaining);
 
-      newvp->lo = i;
-      newvp->hi = i;
-      
-      if (solve(n,d,newvs))
-        labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
-      else
-        leafs++;
+      // Try the remaining values iteratively
+      for (long i = lo; i <= hi; i++) {
+        Var* newvs= entry.vs;
+        Var* newvp=newvs+(vp-vs);
+        memmove(newvs,vs,r*r*sizeof(Var));
+
+        newvp->lo = i;
+        newvp->hi = i;
+        
+        if (solve(n,d,newvs)) {
+          if ( !numRemaining ) {
+            printhexagon(n,newvs);
+            solutions++;
+            leafs++;
+            printf("leafs visited: %lu\n\n",leafs);
+            continue; // for loop
+          }
+
+          pushBacklogEntry(&entry, remaining, numRemaining);
+          entry= allocateBacklogEntry(&writePtr, end, numVars, numRemaining);
+        }
+        else
+          leafs++;
+      }
+
+      releaseBacklogEntry(&writePtr, readPtr, entry);
+      continue;
     }
 
-    // Append the taken variable index back onto the array of remaining vars
+    // Bisect the boundary range of the variable by calling labeling twice
+    // The range is split into (L, M) and (M+1, H)
+    long middle= lo+ range / 2;
+
+    // Append the taken variable index back to the array before calling labeling,
+    // as we will only split its range and it needs to be retaken later
     remaining[numRemaining++]= vp-vs;
-    return;
+
+    // Split range (L, M)
+    NewBacklogEntry entry= allocateBacklogEntry(&writePtr, end, numVars, numRemaining);
+    Var* newvs= entry.vs;
+    Var* newvp=newvs+(vp-vs);
+    memmove(newvs,vs,r*r*sizeof(Var));
+    newvp->lo = lo;
+    newvp->hi = middle;
+    
+    if (solve(n,d,newvs)) {
+      pushBacklogEntry(&entry, remaining, numRemaining);
+      entry= allocateBacklogEntry(&writePtr, end, numVars, numRemaining);
+    }     
+    else
+      leafs++;
+
+    // Split range (M+1, H)
+    newvs= entry.vs;
+    newvp=newvs+(vp-vs);
+    memmove(newvs,vs,r*r*sizeof(Var));
+    newvp->lo= middle+1;
+    newvp->hi= hi;
+    if (solve(n,d,newvs)) {
+      pushBacklogEntry(&entry, remaining, numRemaining);
+    }
+    else {
+      leafs++;
+      releaseBacklogEntry( &writePtr, readPtr, entry );
+    }
   }
-
-  // Bisect the boundary range of the variable by calling labeling twice
-  // The range is split into (L, M) and (M+1, H)
-  long middle= lo+ range / 2;
-
-  // Append the taken variable index back to the array before calling labeling,
-  // as we will only split its range and it needs to be retaken later
-  remaining[numRemaining++]= vp-vs;
-
-  // Split range (L, M)
-  Var* newvp=newvs+(vp-vs);
-  memmove(newvs,vs,r*r*sizeof(Var));
-  newvp->lo = lo;
-  newvp->hi = middle;
-  
-  if (solve(n,d,newvs))
-    labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
-  else
-    leafs++;
-
-  // Split range (M+1, H)
-  memmove(newvs,vs,r*r*sizeof(Var));
-  newvp->lo= middle+1;
-  newvp->hi= hi;
-  if (solve(n,d,newvs))
-    labeling(n, d, newvs, remaining, numRemaining, numPreorderedRemaining);
-  else
-    leafs++;
 }
 
 static Hexagon makehexagon(unsigned long n, long d)
