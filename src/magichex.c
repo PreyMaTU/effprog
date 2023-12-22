@@ -228,8 +228,14 @@ static int solve(unsigned long n, long d, Var vs[])
         Var* diagonalPtr= vs-n+1+i+max(0,n-i-1)*(r+1);
 
         // Reset all hi and lo sum offsets to the expected sum
-        long lineHi= M, columnHi= M, diagonalHi= M;
-        long lineLo= M, columnLo= M, diagonalLo= M;
+        long lineHi0= 0, columnHi0= 0, diagonalHi0= 0;
+        long lineHi1= 0, columnHi1= 0, diagonalHi1= 0;
+        long lineHi2= 0, columnHi2= 0, diagonalHi2= 0;
+        long lineHi3= 0, columnHi3= 0, diagonalHi3= 0;
+        long lineLo0= 0, columnLo0= 0, diagonalLo0= 0;
+        long lineLo1= 0, columnLo1= 0, diagonalLo1= 0;
+        long lineLo2= 0, columnLo2= 0, diagonalLo2= 0;
+        long lineLo3= 0, columnLo3= 0, diagonalLo3= 0;
 
         Var *line, *column, *diagonal;
         line= linePtr;
@@ -237,7 +243,37 @@ static int solve(unsigned long n, long d, Var vs[])
         diagonal = diagonalPtr;
       
         // Compute the hi and lo offsets to the expected sum
-        for (j=0; j<nv; j++) {
+        for (j=0; j< (nv & ~0b11ul); j+= 4) {
+          assert(line < vs+r*r);
+          assert(line+3 < vs+r*r);
+          assert(line->id >= 0);
+          lineHi0+= line[0].lo; lineHi1+= line[1].lo; lineHi2+= line[2].lo; lineHi3+= line[3].lo;
+          lineLo0+= line[0].hi; lineLo1+= line[1].hi; lineLo2+= line[2].hi; lineLo3+= line[3].hi;
+          line+=4;
+
+          assert(column < vs+r*r);
+          assert(column+ 3*r < vs+r*r);
+          assert(column->id >= 0);
+          columnHi0+= column[0].lo; columnHi1+= column[r].lo; columnHi2+= column[2*r].lo; columnHi3+= column[3*r].lo;
+          columnLo0+= column[0].hi; columnLo1+= column[r].hi; columnLo2+= column[2*r].hi; columnLo3+= column[3*r].hi;
+          column+= 4*r;
+
+          assert(diagonal < vs+r*r);
+          assert(diagonal+ 3*(r+1) < vs+r*r);
+          assert(diagonal->id >= 0);
+          diagonalHi0+= diagonal[0].lo; diagonalHi1+= diagonal[r+1].lo; diagonalHi2+= diagonal[2*(r+1)].lo; diagonalHi3+= diagonal[3*(r+1)].lo;
+          diagonalLo0+= diagonal[0].hi; diagonalLo1+= diagonal[r+1].hi; diagonalLo2+= diagonal[2*(r+1)].hi; diagonalLo3+= diagonal[3*(r+1)].hi;
+          diagonal+= 4*(r+1);
+        }
+
+        long lineLo= M - lineLo0 - lineLo1 - lineLo2 - lineLo3;
+        long lineHi= M - lineHi0 - lineHi1 - lineHi2 - lineHi3;
+        long columnLo= M - columnLo0 - columnLo1 - columnLo2 - columnLo3;
+        long columnHi= M - columnHi0 - columnHi1 - columnHi2 - columnHi3;
+        long diagonalLo= M - diagonalLo0 - diagonalLo1 - diagonalLo2 - diagonalLo3;
+        long diagonalHi= M - diagonalHi0 - diagonalHi1 - diagonalHi2 - diagonalHi3;
+
+        for (; j< nv; j++) {
           assert(line < vs+r*r);
           assert(line->id >= 0);
           lineHi -= line->lo;
