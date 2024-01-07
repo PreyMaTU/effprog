@@ -202,19 +202,21 @@ static int solve(unsigned long n, long d, Var vs[])
       one (eliminate rotational symmetry) */
     for (i=1; i<sizeof(corners)/sizeof(corners[0]); i++) {
       int f = lessthan(&vs[corners[0]],&vs[corners[i]]);
-      if (f== NO_SOLUTION)
-        return 0;
-      if (f== DID_CHANGE)
-        change |= 0b10;
+      switch(f){
+        case NO_SOLUTION: return 0;
+        case DID_CHANGE: change |= 0b10; break;
+        default: break;
+      }
     }
     /* eliminate the mirror symmetry between the corners to the right
       and left of the first corner */
     {
       int f = lessthan(&vs[corners[2]],&vs[corners[1]]); 
-      if (f== NO_SOLUTION) 
-        return 0;
-      if (f== DID_CHANGE) 
-        change|= 0b10;
+      switch(f){
+        case NO_SOLUTION: return 0;
+        case DID_CHANGE: change |= 0b10; break;
+        default: break;
+      }
     }
   
     /* sum constraints: each line and diagonal sums up to M */
@@ -266,8 +268,8 @@ static int solve(unsigned long n, long d, Var vs[])
         for (j=0; j<nv; j++) {
           {
             int f = sethi(line, lineHi+line->lo); /* readd vp->lo to get an upper bound of vp */
-            if (f != NO_CHANGE) {
-              if(f== DID_CHANGE) {
+            switch(f){
+              case DID_CHANGE: {
                 if( line->hi == line->lo ) {
                   if( occupation[line->lo-o] < r*r ) {
                     return 0;
@@ -276,13 +278,15 @@ static int solve(unsigned long n, long d, Var vs[])
                 }
 
                 change |= 0b1;
-              } else 
-                return 0;
+                break;
+              }
+              case NO_SOLUTION: return 0;
+              default: break;
             }
 
             f = setlo(line, lineLo+line->hi); /* likewise, readd vp->hi */
-            if (f != NO_CHANGE) {
-              if(f== DID_CHANGE) {
+            switch(f){
+              case DID_CHANGE: {
                 if( line->hi == line->lo ) {
                   if( occupation[line->lo-o] < r*r ) {
                     return 0;
@@ -291,72 +295,82 @@ static int solve(unsigned long n, long d, Var vs[])
                 }
 
                 change |= 0b1;
-              } else 
-                return 0;
+                break;
+              }
+              case NO_SOLUTION: return 0;
+              default: break;
             }
             line++;
           }
 
           {
             int f = sethi(column, columnHi+column->lo); /* readd vp->lo to get an upper bound of vp */
-            if (f != NO_CHANGE) {
-              if(f== DID_CHANGE) {
-                if (column->hi == column->lo) {
-                  if (occupation[column->lo - o] < r * r) {
+            switch(f){
+              case DID_CHANGE: {
+                if( line->hi == line->lo ) {
+                  if( occupation[line->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[column->lo - o] = column - vs;
+                  occupation[line->lo-o]= line- vs;
                 }
 
                 change |= 0b1;
-              } else 
-                return 0;
+                break;
+              }
+              case NO_SOLUTION: return 0;
+              default: break;
             }
             f = setlo(column, columnLo+column->hi); /* likewise, readd vp->hi */
-            if (f != NO_CHANGE) {
-              if(f== DID_CHANGE) {
-                if( column->hi == column->lo ) {
-                  if( occupation[column->lo-o] < r*r ) {
+            switch(f){
+              case DID_CHANGE: {
+                if( line->hi == line->lo ) {
+                  if( occupation[line->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[column->lo - o] = column - vs;
+                  occupation[line->lo-o]= line- vs;
                 }
 
                 change |= 0b1;
-              } else 
-                return 0;
+                break;
+              }
+              case NO_SOLUTION: return 0;
+              default: break;
             }
             column+= r;
           }
 
           {
             int f = sethi(diagonal, diagonalHi+diagonal->lo); /* readd vp->lo to get an upper bound of vp */
-            if (f != NO_CHANGE) {
-              if(f== DID_CHANGE) {
-                if( diagonal->hi == diagonal->lo ) {
-                  if( occupation[diagonal->lo-o] < r*r ) {
+            switch(f){
+              case DID_CHANGE: {
+                if( line->hi == line->lo ) {
+                  if( occupation[line->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[diagonal->lo - o] = diagonal - vs;
+                  occupation[line->lo-o]= line- vs;
                 }
 
                 change |= 0b1;
-              } else 
-                return 0;
+                break;
+              }
+              case NO_SOLUTION: return 0;
+              default: break;
             }
             f = setlo(diagonal, diagonalLo+diagonal->hi); /* likewise, readd vp->hi */
-            if (f != NO_CHANGE) {
-              if(f== DID_CHANGE) {
-                if( diagonal->hi == diagonal->lo ) {
-                  if( occupation[diagonal->lo-o] < r*r ) {
+            switch(f){
+              case DID_CHANGE: {
+                if( line->hi == line->lo ) {
+                  if( occupation[line->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[diagonal->lo-o]= diagonal- vs;
+                  occupation[line->lo-o]= line- vs;
                 }
 
                 change |= 0b1;
-              } else 
-                return 0;
+                break;
+              }
+              case NO_SOLUTION: return 0;
+              default: break;
             }
             diagonal+= r+1;
           }
