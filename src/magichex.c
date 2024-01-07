@@ -307,11 +307,11 @@ static int solve(unsigned long n, long d, Var vs[])
             int f = sethi(column, columnHi+column->lo); /* readd vp->lo to get an upper bound of vp */
             switch(f){
               case DID_CHANGE: {
-                if( line->hi == line->lo ) {
-                  if( occupation[line->lo-o] < r*r ) {
+                if( column->hi == column->lo ) {
+                  if( occupation[column->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[line->lo-o]= line- vs;
+                  occupation[column->lo-o]= column - vs;
                 }
 
                 change |= 0b1;
@@ -323,11 +323,11 @@ static int solve(unsigned long n, long d, Var vs[])
             f = setlo(column, columnLo+column->hi); /* likewise, readd vp->hi */
             switch(f){
               case DID_CHANGE: {
-                if( line->hi == line->lo ) {
-                  if( occupation[line->lo-o] < r*r ) {
+                if( column->hi == column->lo ) {
+                  if( occupation[column->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[line->lo-o]= line- vs;
+                  occupation[column->lo-o]= column- vs;
                 }
 
                 change |= 0b1;
@@ -343,11 +343,11 @@ static int solve(unsigned long n, long d, Var vs[])
             int f = sethi(diagonal, diagonalHi+diagonal->lo); /* readd vp->lo to get an upper bound of vp */
             switch(f){
               case DID_CHANGE: {
-                if( line->hi == line->lo ) {
-                  if( occupation[line->lo-o] < r*r ) {
+                if( diagonal->hi == diagonal->lo ) {
+                  if( occupation[diagonal->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[line->lo-o]= line- vs;
+                  occupation[diagonal->lo-o]= diagonal- vs;
                 }
 
                 change |= 0b1;
@@ -359,11 +359,11 @@ static int solve(unsigned long n, long d, Var vs[])
             f = setlo(diagonal, diagonalLo+diagonal->hi); /* likewise, readd vp->hi */
             switch(f){
               case DID_CHANGE: {
-                if( line->hi == line->lo ) {
-                  if( occupation[line->lo-o] < r*r ) {
+                if( diagonal->hi == diagonal->lo ) {
+                  if( occupation[diagonal->lo-o] < r*r ) {
                     return 0;
                   }
-                  occupation[line->lo-o]= line- vs;
+                  occupation[diagonal->lo-o]= diagonal- vs;
                 }
 
                 change |= 0b1;
